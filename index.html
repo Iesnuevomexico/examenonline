@@ -159,7 +159,7 @@
         <div class="admin-header">
             <h2><i class="fas fa-user-cog" style="margin-right:12px;"></i>Panel Administrativo</h2>
             <div class="admin-actions">
-                <button class="btn btn-outline btn-volver" id="btnVolverAdmin"><i class="fas fa-arrow-left"></i> Volver</button>
+                <button class="btn btn-outline btn-volver" id="btnVolverAdmin"><i class="fas fa-sign-out-alt"></i> Cerrar sesión</button>
                 <button class="btn btn-success" id="activarResultadoBtn"><i class="fas fa-check-circle"></i> Activar aprobado</button>
                 <button class="btn btn-outline" id="verExamenBtn"><i class="fas fa-list"></i> Ver examen</button>
             </div>
@@ -245,7 +245,7 @@
     <!-- PANEL ASPIRANTE -->
     <div class="aspirante-panel" id="panelAspirante">
         <div style="display:flex; justify-content:space-between; flex-wrap:wrap; align-items:center; margin-bottom:12px;">
-            <h3><button class="btn btn-outline btn-volver" id="btnVolverAspirante"><i class="fas fa-arrow-left"></i> Volver</button><i class="fas fa-user-graduate" style="margin-right:10px;"></i>Portal aspirante</h3>
+            <h3><button class="btn btn-outline btn-volver" id="btnVolverAspirante"><i class="fas fa-sign-out-alt"></i> Cerrar sesión</button><i class="fas fa-user-graduate" style="margin-right:10px;"></i>Portal aspirante</h3>
             <div style="display:flex; gap:16px; align-items:center;"><span><span class="punto-verde"></span> En línea</span><span class="cronometro" id="cronometroDisplay">02:30:00</span></div>
         </div>
         <div class="cam-sim"><i class="fas fa-video"></i> <span style="font-weight:300;">Cámara activa ·</span> <span style="background:#2a4b6a; padding:2px 18px; border-radius:40px;">supervisión en vivo</span><i class="fas fa-circle" style="color:#32cd72; font-size:0.8rem; margin-left:auto;"></i></div>
@@ -339,18 +339,21 @@
                 const bloqueado = intentosGlobales[alumno.email]?.bloqueadoHasta || 0;
                 const ahora = Date.now();
                 const estaBloqueado = bloqueado > ahora;
-                const estado = estaBloqueado ? 'Bloqueado' : 'Activo';
-                const badgeClass = estaBloqueado ? 'badge-bloqueado' : 'badge';
+                let estado = 'Activo';
+                let badgeClass = 'badge';
+                if (estaBloqueado) { estado = 'Bloqueado'; badgeClass = 'badge-bloqueado'; }
+                else if (alumno.aprobado) { estado = 'Examen finalizado'; badgeClass = 'badge-aprobado'; }
                 const intentosMostrar = estaBloqueado ? `${intentos} (espera ${Math.ceil((bloqueado - ahora)/60000)} min)` : intentos;
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td><input type="text" value="${alumno.nombre}" data-index="${index}" data-campo="nombre" class="editar-alumno" style="border:none;background:transparent;font-size:0.9rem;width:100%;"></td>
                     <td><input type="text" value="${alumno.email}" data-index="${index}" data-campo="email" class="editar-alumno" style="border:none;background:transparent;font-size:0.9rem;width:100%;"></td>
-                    <td><span class="codigo-generado">${alumno.clave}</span></td>
+                    <td><input type="text" value="${alumno.clave}" data-index="${index}" data-campo="clave" class="editar-alumno codigo-generado" style="border:none;width:130px;"></td>
                     <td><span class="${badgeClass}">${estado}</span></td>
                     <td>${intentosMostrar}</td>
-                    <td>
-                        <button class="btn btn-danger btn-sm" onclick="eliminarAlumno(${index})"><i class="fas fa-trash"></i></button>
+                    <td style="white-space:nowrap;">
+                        ${alumno.aprobado ? `<button class="btn btn-success btn-sm" onclick="reactivarExamen(${index})" title="Permitir que vuelva a presentar el examen"><i class="fas fa-redo"></i> Reactivar</button>` : ''}
+                        <button class="btn btn-danger btn-sm" onclick="eliminarAlumno(${index})" title="Eliminar alumno"><i class="fas fa-trash"></i></button>
                     </td>
                 `;
                 tablaAlumnos.appendChild(row);
@@ -359,7 +362,24 @@
                 input.addEventListener('change', function() {
                     const idx = parseInt(this.dataset.index);
                     const campo = this.dataset.campo;
-                    alumnos[idx][campo] = this.value;
+                    const valor = this.value.trim();
+                    if (campo === 'email' && alumnos.some((a, i) => i !== idx && a.email === valor)) {
+                        alert('Ese correo ya está registrado con otro alumno.');
+                        renderizarAlumnos();
+                        return;
+                    }
+                    if (!valor) {
+                        alert('El campo no puede quedar vacío.');
+                        renderizarAlumnos();
+                        return;
+                    }
+                    const emailAnterior = alumnos[idx].email;
+                    alumnos[idx][campo] = valor;
+                    if (campo === 'email' && intentosGlobales[emailAnterior]) {
+                        intentosGlobales[valor] = intentosGlobales[emailAnterior];
+                        delete intentosGlobales[emailAnterior];
+                        renderizarAlumnos();
+                    }
                 });
             });
         }
@@ -370,6 +390,19 @@
                 alumnos.splice(index, 1);
                 delete intentosGlobales[email];
                 renderizarAlumnos();
+            }
+        };
+
+        window.reactivarExamen = function(index) {
+            const alumno = alumnos[index];
+            if (confirm(`¿Reactivar el examen de ${alumno.nombre}? Podrá presentarlo nuevamente desde el inicio.`)) {
+                alumno.aprobado = false;
+                if (intentosGlobales[alumno.email]) {
+                    intentosGlobales[alumno.email].intentos = 0;
+                    intentosGlobales[alumno.email].bloqueadoHasta = 0;
+                }
+                renderizarAlumnos();
+                alert(`El examen de ${alumno.nombre} ha sido reactivado. Ya puede volver a presentarlo.`);
             }
         };
 
@@ -692,9 +725,11 @@
                 mensajeValidacion.innerHTML = `<span style="color:#b13e3e;"><i class="fas fa-clock"></i> Demasiados intentos. Espera ${minutosBloqueo} minutos.</span>`;
                 document.getElementById('mensajeBloqueo').textContent = `Has excedido el número de intentos. Espera ${minutosBloqueo} minutos para volver a intentar.`;
                 document.getElementById('modalBloqueo').classList.add('active');
+                renderizarAlumnos();
                 return true;
             }
             mensajeValidacion.innerHTML = `<span style="color:#b8863d;"><i class="fas fa-exclamation-triangle"></i> Credenciales incorrectas. Intento ${data.intentos} de 3.</span>`;
+            renderizarAlumnos();
             return false;
         }
 
@@ -724,6 +759,7 @@
             if (intentosGlobales[email]) {
                 intentosGlobales[email].intentos = 0;
                 intentosGlobales[email].bloqueadoHasta = 0;
+                renderizarAlumnos();
             }
             // Ir directo al panel aspirante, ocultando las tarjetas
             accessGrid.classList.add('oculto');
