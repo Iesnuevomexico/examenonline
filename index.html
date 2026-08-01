@@ -269,13 +269,13 @@
                 </div>
             </div>
             <div style="display:flex; justify-content:flex-end; margin-top:10px;">
-                <button class="btn-finalizar" id="btnFinalizarExamen"><i class="fas fa-paper-plane"></i> Finalizar examen</button>
+                <button class="btn-finalizar oculto" id="btnFinalizarExamen"><i class="fas fa-paper-plane"></i> Finalizar examen</button>
             </div>
         </div>
         <div id="mensajeResultado" class="oculto" style="background:#d4edda; border-radius:40px; padding:24px; margin:20px 0; text-align:center;">
             <i class="fas fa-check-circle" style="color:#1e7b4c; font-size:2.6rem;"></i>
             <h4 style="margin:12px 0;">¡Examen finalizado!</h4>
-            <p style="font-size:1.1rem;">Los resultados estarán disponibles pronto. <br> <span style="background:#0b2b4a; color:white; padding:6px 24px; border-radius:40px; display:inline-block; margin-top:14px;">Correo: <span id="correoAspiranteMostrado"></span></span></p>
+            <p style="font-size:1.1rem;">Los resultados estarán disponibles en la fecha indicada. <br> La documentación solicitada llegará al correo electrónico proporcionado a la Institución. <br> <span style="background:#0b2b4a; color:white; padding:6px 24px; border-radius:40px; display:inline-block; margin-top:14px;">Correo: <span id="correoAspiranteMostrado"></span></span></p>
         </div>
     </div>
 
@@ -742,8 +742,10 @@
             if (alumno.aprobado) {
                 avisoTiempo.classList.add('oculto');
                 mensajeResultado.classList.remove('oculto');
+                btnIniciar.disabled = true;
             } else {
                 avisoTiempo.classList.remove('oculto');
+                btnIniciar.disabled = false;
             }
         });
 
@@ -767,6 +769,7 @@
                     examenContent.classList.add('oculto');
                     mensajeResultado.classList.remove('oculto');
                     examenIniciado = false;
+                    btnIniciar.disabled = true;
                     if (alumnoActual) {
                         alumnoActual.aprobado = true;
                         renderizarAlumnos();
@@ -819,6 +822,7 @@
             document.getElementById('infoMateria').innerHTML = `<i class="fas fa-tag"></i> ${p.materia || 'General'} · ${p.subtema || 'General'}`;
             document.getElementById('btnAnterior').disabled = (index === 0);
             document.getElementById('btnSiguiente').disabled = (index === total - 1);
+            document.getElementById('btnFinalizarExamen').classList.toggle('oculto', index !== total - 1);
             actualizarProgreso();
         }
 
@@ -832,6 +836,11 @@
 
         btnIniciar.addEventListener('click', function() {
             if (examenIniciado) return;
+            if (alumnoActual && alumnoActual.aprobado) {
+                avisoTiempo.classList.add('oculto');
+                mensajeResultado.classList.remove('oculto');
+                return;
+            }
             if (preguntasExamen.length === 0) {
                 alert('No hay examen cargado. Contacta al administrador.');
                 return;
@@ -852,11 +861,12 @@
             examenContent.classList.add('oculto');
             mensajeResultado.classList.remove('oculto');
             examenIniciado = false;
+            btnIniciar.disabled = true;
             if (alumnoActual) {
                 alumnoActual.aprobado = true;
                 renderizarAlumnos();
             }
-            alert('Examen enviado. Los resultados estarán disponibles en el panel administrativo.');
+            alert('Examen enviado. Los resultados estarán disponibles en la fecha indicada.');
         });
 
         document.getElementById('btnAnterior').addEventListener('click', function() {
