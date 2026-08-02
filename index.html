@@ -53,6 +53,7 @@
             .splash-medal::before { animation: none !important; }
             .splash-progress-fill { animation: none !important; width: 100% !important; }
             .access-card, .access-card .icono-grande, .access-card::before { transition: none !important; }
+            .cam-dot { animation: none !important; }
         }
 
         /* HEADER */
@@ -130,8 +131,20 @@
         /* ASPIRANTE */
         .aspirante-panel { display: none; background: #f8fcff; border-radius: 32px; padding: 28px 32px; margin-top: 20px; border: 1px solid #dce7f2; }
         .aspirante-panel.active { display: block; }
-        .cam-sim { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; background: #0b1f31; color: white; padding: 12px 24px; border-radius: 60px; margin: 16px 0; }
-        .cam-sim i { font-size: 1.8rem; color: #7fc9ff; }
+        .cam-monitor { display: flex; gap: 18px; align-items: stretch; background: var(--navy-deep); color: white; padding: 14px; border-radius: 24px; margin: 16px 0; flex-wrap: wrap; }
+        .cam-monitor__frame { position: relative; width: 180px; height: 130px; border-radius: 16px; overflow: hidden; background: #050d18; flex-shrink: 0; border: 1px solid rgba(232,199,102,0.25); }
+        .cam-monitor__frame video { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); }
+        .cam-monitor__placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: rgba(255,255,255,0.4); font-size: 0.75rem; background: #050d18; }
+        .cam-monitor__placeholder i { font-size: 1.6rem; }
+        .cam-monitor__placeholder.oculto { display: none; }
+        .cam-monitor__badge { position: absolute; top: 8px; left: 8px; display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.55); padding: 3px 10px; border-radius: 30px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.5px; opacity: 0; transition: opacity .3s; }
+        .cam-monitor__badge.activo { opacity: 1; }
+        .cam-dot { width: 7px; height: 7px; border-radius: 50%; background: #ff4d4d; animation: pulseDot 1.4s ease-in-out infinite; }
+        @keyframes pulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+        .cam-monitor__time { position: absolute; bottom: 8px; right: 10px; font-family: monospace; font-size: 0.7rem; background: rgba(0,0,0,0.5); padding: 2px 8px; border-radius: 20px; letter-spacing: 1px; }
+        .cam-monitor__info { flex: 1; min-width: 200px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+        .cam-monitor__info strong { color: var(--gold-pale); font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
+        .cam-monitor__info p { font-size: 0.82rem; color: rgba(255,255,255,0.7); line-height: 1.4; }
         .punto-verde { display: inline-block; width: 16px; height: 16px; background: #32cd72; border-radius: 50%; box-shadow: 0 0 16px #32cd72; margin-right: 6px; animation: pulse 1.8s infinite; }
         @keyframes pulse { 0% { opacity: 0.6; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.2); } 100% { opacity: 0.6; transform: scale(0.9); } }
         .cronometro { font-size: 1.7rem; font-weight: 700; background: #1d334a; padding: 4px 24px; border-radius: 60px; letter-spacing: 3px; font-variant-numeric: tabular-nums; }
@@ -310,7 +323,18 @@
             <h3><button class="btn btn-outline btn-volver" id="btnVolverAspirante"><i class="fas fa-sign-out-alt"></i> Cerrar sesión</button><i class="fas fa-user-graduate" style="margin-right:10px;"></i>Portal aspirante</h3>
             <div style="display:flex; gap:16px; align-items:center;"><span><span class="punto-verde"></span> En línea</span><span class="cronometro" id="cronometroDisplay">02:30:00</span></div>
         </div>
-        <div class="cam-sim"><i class="fas fa-video"></i> <span style="font-weight:300;">Cámara activa ·</span> <span style="background:#2a4b6a; padding:2px 18px; border-radius:40px;">supervisión en vivo</span><i class="fas fa-circle" style="color:#32cd72; font-size:0.8rem; margin-left:auto;"></i></div>
+        <div class="cam-monitor" id="camMonitor">
+            <div class="cam-monitor__frame">
+                <video id="camPreview" autoplay muted playsinline></video>
+                <div class="cam-monitor__placeholder" id="camPlaceholder"><i class="fas fa-video-slash"></i><span>Cámara en espera</span></div>
+                <div class="cam-monitor__badge" id="camBadge"><span class="cam-dot"></span> EN VIVO</div>
+                <div class="cam-monitor__time" id="camTime">00:00:00</div>
+            </div>
+            <div class="cam-monitor__info">
+                <strong><i class="fas fa-shield-alt"></i> Supervisión del examen</strong>
+                <p id="camStatusText">La cámara se activará al presionar <strong>Comenzar</strong> para verificar tu identidad durante la evaluación.</p>
+            </div>
+        </div>
 
         <div id="avisoTiempo" style="background:#fff3cd; border-radius:40px; padding:14px 28px; border-left:6px solid #e6a017; margin:12px 0; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;" class="oculto">
             <span><i class="fas fa-clock" style="margin-right:12px;"></i> Tienes <strong>2 horas y 30 minutos</strong> para contestar el examen.</span>
@@ -364,6 +388,8 @@
     let examenIniciado = false;
     let respuestasUsuario = [];
     let preguntaActual = 0;
+    let camStream = null;
+    let camClockInterval = null;
 
     // ==================== LÓGICA DEL PORTAL ====================
     (function(){
@@ -868,6 +894,7 @@
                     mensajeResultado.classList.remove('oculto');
                     examenIniciado = false;
                     btnIniciar.disabled = true;
+                    detenerCamara();
                     if (alumnoActual) {
                         alumnoActual.aprobado = true;
                         renderizarAlumnos();
@@ -932,6 +959,58 @@
             document.getElementById('progresoTexto').innerText = `${respondidas}/${total}`;
         }
 
+        // ==================== SIMULACIÓN DE CÁMARA (evidencia del examen) ====================
+        const camPreview = document.getElementById('camPreview');
+        const camPlaceholder = document.getElementById('camPlaceholder');
+        const camBadge = document.getElementById('camBadge');
+        const camTime = document.getElementById('camTime');
+        const camStatusText = document.getElementById('camStatusText');
+
+        function iniciarRelojCamara() {
+            let segundos = 0;
+            camTime.textContent = '00:00:00';
+            camClockInterval = setInterval(function() {
+                segundos++;
+                const h = String(Math.floor(segundos / 3600)).padStart(2, '0');
+                const m = String(Math.floor((segundos % 3600) / 60)).padStart(2, '0');
+                const s = String(segundos % 60).padStart(2, '0');
+                camTime.textContent = `${h}:${m}:${s}`;
+            }, 1000);
+        }
+
+        function activarCamara() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                camStatusText.innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#e6a017;"></i> Este navegador no permite activar la cámara. Puedes continuar con el examen.';
+                return;
+            }
+            camStatusText.textContent = 'Solicitando acceso a la cámara...';
+            navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+                .then(function(stream) {
+                    camStream = stream;
+                    camPreview.srcObject = stream;
+                    camPlaceholder.classList.add('oculto');
+                    camBadge.classList.add('activo');
+                    camStatusText.innerHTML = '<i class="fas fa-check-circle" style="color:#32cd72;"></i> Cámara activa: se está registrando evidencia visual durante el examen.';
+                    iniciarRelojCamara();
+                })
+                .catch(function() {
+                    camStatusText.innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#e6a017;"></i> No se pudo activar tu cámara (permiso denegado o no disponible). Puedes continuar con el examen.';
+                });
+        }
+
+        function detenerCamara() {
+            if (camStream) {
+                camStream.getTracks().forEach(t => t.stop());
+                camStream = null;
+            }
+            camPreview.srcObject = null;
+            camPlaceholder.classList.remove('oculto');
+            camBadge.classList.remove('activo');
+            if (camClockInterval) { clearInterval(camClockInterval); camClockInterval = null; }
+            camTime.textContent = '00:00:00';
+            camStatusText.innerHTML = 'La cámara se activará al presionar <strong>Comenzar</strong> para verificar tu identidad durante la evaluación.';
+        }
+
         btnIniciar.addEventListener('click', function() {
             if (examenIniciado) return;
             if (alumnoActual && alumnoActual.aprobado) {
@@ -951,6 +1030,7 @@
             preguntaActual = 0;
             mostrarPregunta(0);
             iniciarCronometro();
+            activarCamara();
         });
 
         btnFinalizar.addEventListener('click', function() {
@@ -960,6 +1040,7 @@
             mensajeResultado.classList.remove('oculto');
             examenIniciado = false;
             btnIniciar.disabled = true;
+            detenerCamara();
             if (alumnoActual) {
                 alumnoActual.aprobado = true;
                 renderizarAlumnos();
@@ -1017,6 +1098,7 @@
             }
             if (cronoInterval) { clearInterval(cronoInterval); cronoInterval = null; }
             examenIniciado = false;
+            detenerCamara();
             tiempoSegundos = 9000;
             actualizarCrono();
             examenContent.classList.add('oculto');
